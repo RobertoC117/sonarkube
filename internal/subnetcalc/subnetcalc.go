@@ -166,6 +166,7 @@ func calculateSubnets(network net.IPNet, newNetworkMask net.IPMask, desiredSubne
 		ipNet := net.IPNet{IP: _network, Mask: newNetworkMask}
 
 		broadcast_address, err := calculateBroadcastAddress(ipNet)
+		
 		if err != nil {
 			return nil, err
 		}
