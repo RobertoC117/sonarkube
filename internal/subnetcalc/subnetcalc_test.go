@@ -195,6 +195,7 @@ func TestGetNetworkAndMask(t *testing.T) {
 		})
 	}
 }
+
 // TestCalculateNewNetworkMask prueba calculateNewNetworkMask(currentMask net.IPMask, newBits int) net.IPMask.
 // net.CIDRMask(bits, 32) construye una mascara IPv4 (32 bits totales) a partir
 // de la cantidad de bits de red -- es la forma idiomatica de armar un

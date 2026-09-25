@@ -2,18 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
+
+	outfmt "github.com/RobertoC117/sonarkube/internal/output"
 	"github.com/RobertoC117/sonarkube/internal/subnetcalc"
 	"github.com/spf13/cobra"
 )
 
 var (
-	info    bool
-	split	int16
+	info  bool
+	split int16
 )
 
-func getSubnetInfo(cidr string) error {
+func getSubnetInfo(cidr, format string) error {
 
 	subnetInfo, err := subnetcalc.GetSubnetInfo(cidr)
 
@@ -21,61 +21,40 @@ func getSubnetInfo(cidr string) error {
 		return fmt.Errorf("error getting network info: %w", err)
 	}
 
-	fmt.Println("Network IP Address:", subnetInfo.Network)
-	fmt.Println("Broadcast IP Address:", subnetInfo.Broadcast)
-	fmt.Printf("Usable Host Range: %v - %v \n", subnetInfo.LowLimitHost, subnetInfo.UpperLimitHost)
-	fmt.Println("Usable Hosts: ", subnetInfo.UsableHosts)
-
-	return nil
+	return outfmt.Print(format, subnetInfo)
 }
 
-
-func splitSubnet(cidr string, split int) error {
-	info, err:= subnetcalc.SplitSubnet(cidr, split)
+func splitSubnet(cidr string, split int, format string) error {
+	info, err := subnetcalc.SplitSubnet(cidr, split)
 
 	if err != nil {
 		return fmt.Errorf("error splitting network: %w", err)
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
-	_, err = fmt.Fprintln(w, "SUBNET\tBROADCAST\tHOST RANGE\tUSABLE HOSTS")
-
-	if err != nil {
-		return err
-	}
-
-	for _, v := range info {
-		if _, err := fmt.Fprintf(w, "%v\t%v\t%v - %v\t%v\n", v.Network, v.Broadcast, v.LowLimitHost, v.UpperLimitHost, v.UsableHosts); err != nil {
-			return err
-		}
-	}
-
-	err = w.Flush()
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return outfmt.Print(format, subnetcalc.SubnetInfoList(info))
 }
 
-
 var subnetCmd = &cobra.Command{
-	Use:   "subnet",
-	Short: "Provide info abour subnet",
-	Long:  `Provide info abour subnet`,
+	Use:   "subnet <CIDR>",
+	Short: "Calculate or split an IPv4 subnet",
+	Long:  `Given a CIDR block, shows its network/broadcast address and usable host range (--info), or splits it into smaller subnets (--split).`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		format, err := cmd.Flags().GetString("output")
+		if err != nil {
+			return err
+		}
+
 		CIDR := args[0]
 
 		if info {
-			if err :=  getSubnetInfo(CIDR); err != nil {
+			if err := getSubnetInfo(CIDR, format); err != nil {
 				return err
 			}
 		}
 
 		if split > 0 {
-			if err := splitSubnet(CIDR, int(split)); err != nil {
+			if err := splitSubnet(CIDR, int(split), format); err != nil {
 				return err
 			}
 		}

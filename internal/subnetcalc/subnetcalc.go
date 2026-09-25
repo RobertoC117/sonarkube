@@ -5,14 +5,44 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"strings"
+	"text/tabwriter"
 )
 
 type SubnetInfo struct {
-	Network string
-	Broadcast string
-	LowLimitHost string
-	UpperLimitHost string
-	UsableHosts int
+	Network        string `json:"network"`
+	Broadcast      string `json:"broadcast"`
+	LowLimitHost   string `json:"low_limit_host"`
+	UpperLimitHost string `json:"upper_limit_host"`
+	UsableHosts    int    `json:"usable_hosts"`
+}
+
+func (s SubnetInfo) RenderTable() (string, error) {
+	return fmt.Sprintf(
+		"Network IP Address: %s\nBroadcast IP Address: %s\nUsable Host Range: %s - %s \nUsable Hosts:  %d\n",
+		s.Network, s.Broadcast, s.LowLimitHost, s.UpperLimitHost, s.UsableHosts,
+	), nil
+}
+
+type SubnetInfoList []SubnetInfo
+
+func (l SubnetInfoList) RenderTable() (string, error) {
+	var b strings.Builder
+	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', tabwriter.Debug)
+	_, err := fmt.Fprintln(w, "SUBNET\tBROADCAST\tHOST RANGE\tUSABLE HOSTS")
+	if err != nil {
+		return "", err
+	}
+	for _, v := range l {
+		if _, err := fmt.Fprintf(w, "%v\t%v\t%v - %v\t%v\n", v.Network, v.Broadcast, v.LowLimitHost, v.UpperLimitHost, v.UsableHosts); err != nil {
+			return "", err
+		}
+	}
+	err = w.Flush()
+	if err != nil {
+		return "", err
+	}
+	return b.String(), nil
 }
 
 func getNetworkAndMask(cidr string) (*net.IPNet, error) {
@@ -83,11 +113,11 @@ func GetSubnetInfo(cidr string) (SubnetInfo, error) {
 	lowLimitHost, upperLimitHost := calculateUsableHostRange(network.IP, broadcast, hostBits)
 
 	res := SubnetInfo{
-		Network: network.String(),
-		Broadcast: broadcast.String(),
-		LowLimitHost: lowLimitHost.String(),
+		Network:        network.String(),
+		Broadcast:      broadcast.String(),
+		LowLimitHost:   lowLimitHost.String(),
 		UpperLimitHost: upperLimitHost.String(),
-		UsableHosts: hosts,
+		UsableHosts:    hosts,
 	}
 
 	return res, nil
@@ -100,9 +130,9 @@ func calculateAdditionalNetworkBits(desiredSubnets int) int {
 
 func calculateNewNetworkMask(currentMask net.IPMask, newBits int) net.IPMask {
 	maskBites := binary.BigEndian.Uint32(currentMask)
-	newNetworkMask := maskBites >> newBits// | (1<<(32-newBits))
+	newNetworkMask := maskBites >> newBits // | (1<<(32-newBits))
 	//fill empty bits with 1
-	for i := 1 ; i <= newBits; i++ {
+	for i := 1; i <= newBits; i++ {
 		newNetworkMask |= (1 << (32 - i))
 	}
 
@@ -113,9 +143,9 @@ func calculateNewNetworkMask(currentMask net.IPMask, newBits int) net.IPMask {
 
 func findInterestingOctet(mask net.IPMask) (index int, value byte, found bool) {
 	for i, octeto := range mask {
-			if octeto > 0 && octeto < 255 {
-					return i, octeto, true
-			}
+		if octeto > 0 && octeto < 255 {
+			return i, octeto, true
+		}
 	}
 	return -1, 0, false
 }
@@ -152,21 +182,21 @@ func calculateSubnets(network net.IPNet, newNetworkMask net.IPMask, desiredSubne
 	jumpSize := 256 - int(value)
 
 	_network := make(net.IP, len(network.IP))
-  	copy(_network, network.IP)
+	copy(_network, network.IP)
 
 	_subnetsInfo := make([]SubnetInfo, desiredSubnets)
 
 	for i := 1; i <= desiredSubnets; i++ {
-		
+
 		next_subnet_address := int(_network[index]) + jumpSize
-		if(next_subnet_address > 255){
+		if next_subnet_address > 255 {
 			next_subnet_address = 255
 		}
 
 		ipNet := net.IPNet{IP: _network, Mask: newNetworkMask}
 
 		broadcast_address, err := calculateBroadcastAddress(ipNet)
-		
+
 		if err != nil {
 			return nil, err
 		}
@@ -175,12 +205,12 @@ func calculateSubnets(network net.IPNet, newNetworkMask net.IPMask, desiredSubne
 
 		host_available := calculateHostAvailable(ipNet)
 
-		_subnetsInfo[i - 1] = SubnetInfo{
-			Network: _network.String(),
-			Broadcast: broadcast_address.String(),
-			LowLimitHost: low_limit_host.String(),
+		_subnetsInfo[i-1] = SubnetInfo{
+			Network:        _network.String(),
+			Broadcast:      broadcast_address.String(),
+			LowLimitHost:   low_limit_host.String(),
 			UpperLimitHost: upper_limit_host.String(),
-			UsableHosts: host_available,
+			UsableHosts:    host_available,
 		}
 
 		_network[index] = byte(next_subnet_address)
