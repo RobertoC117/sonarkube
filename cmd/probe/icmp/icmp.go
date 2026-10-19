@@ -20,7 +20,7 @@ var IcmpCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if timeout <= 0 {
-			return fmt.Errorf("timeout must be greater than 0ms")
+			return fmt.Errorf("--timeout must be greater than 0")
 		}
 
 		format, err := cmd.Flags().GetString("output")
@@ -41,9 +41,8 @@ var IcmpCmd = &cobra.Command{
 	},
 }
 
-// init() se ejecuta al importar el paquete: aqui registramos el subcomando
-// en el root y declaramos sus flags locales (solo existen para "sumar").
+// init declares the icmp command's local flags.
 func init() {
-	IcmpCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Timeout in milliseconds, by default is 5000")
+	IcmpCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Per-packet timeout in milliseconds")
 	IcmpCmd.Flags().IntVarP(&count, "count", "c", 4, "Number of ICMP echo requests to send")
 }

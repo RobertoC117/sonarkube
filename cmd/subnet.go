@@ -18,7 +18,7 @@ func getSubnetInfo(cidr, format string) error {
 	subnetInfo, err := subnetcalc.GetSubnetInfo(cidr)
 
 	if err != nil {
-		return fmt.Errorf("error getting network info: %w", err)
+		return fmt.Errorf("could not compute subnet info for %q: %w", cidr, err)
 	}
 
 	return outfmt.Print(format, subnetInfo)
@@ -28,7 +28,7 @@ func splitSubnet(cidr string, split int, format string) error {
 	info, err := subnetcalc.SplitSubnet(cidr, split)
 
 	if err != nil {
-		return fmt.Errorf("error splitting network: %w", err)
+		return fmt.Errorf("could not split %q: %w", cidr, err)
 	}
 
 	return outfmt.Print(format, subnetcalc.SubnetInfoList(info))
@@ -47,6 +47,10 @@ var subnetCmd = &cobra.Command{
 
 		CIDR := args[0]
 
+		if !info && split <= 0 {
+			return fmt.Errorf("nothing to do: pass --info and/or --split")
+		}
+
 		if info {
 			if err := getSubnetInfo(CIDR, format); err != nil {
 				return err
@@ -63,10 +67,9 @@ var subnetCmd = &cobra.Command{
 	},
 }
 
-// init() se ejecuta al importar el paquete: aqui registramos el subcomando
-// en el root y declaramos sus flags locales (solo existen para "sumar").
+// init registers the subcommand under root and declares its local flags.
 func init() {
 	rootCmd.AddCommand(subnetCmd)
-	subnetCmd.Flags().BoolVar(&info, "info", false, "Show info about subnet")
-	subnetCmd.Flags().Int16Var(&split, "split", 0, "Split subnet")
+	subnetCmd.Flags().BoolVar(&info, "info", false, "Show network address, broadcast and usable host range")
+	subnetCmd.Flags().Int16Var(&split, "split", 0, "Split the block into this many subnets")
 }

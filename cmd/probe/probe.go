@@ -13,8 +13,7 @@ var ProbeCmd = &cobra.Command{
 	Long:  `Groups the network diagnostic subcommands: tcp (check port connectivity), dns (resolve a hostname), and icmp (ping a host).`,
 }
 
-// init() se ejecuta al importar el paquete: aqui registramos el subcomando
-// en el root y declaramos sus flags locales (solo existen para "sumar").
+// init wires the tcp, dns and icmp subcommands under probe.
 func init() {
 	ProbeCmd.AddCommand(tcp.TcpCmd)
 	ProbeCmd.AddCommand(dns.DnsCmd)

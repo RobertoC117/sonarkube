@@ -19,7 +19,7 @@ var DnsCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if timeout <= 0 {
-			return fmt.Errorf("timeout must be greater than 0ms")
+			return fmt.Errorf("--timeout must be greater than 0")
 		}
 
 		format, err := cmd.Flags().GetString("output")
@@ -42,8 +42,7 @@ var DnsCmd = &cobra.Command{
 	},
 }
 
-// init() se ejecuta al importar el paquete: aqui registramos el subcomando
-// en el root y declaramos sus flags locales (solo existen para "sumar").
+// init declares the dns command's local flags.
 func init() {
-	DnsCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Timeout in milliseconds, by default is 5000")
+	DnsCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Resolution timeout in milliseconds")
 }

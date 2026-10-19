@@ -26,12 +26,6 @@ func TestMakeDNSQuery(t *testing.T) {
 			timeout: 5000,
 			wantErr: true,
 		},
-		{
-			name:    "Timeout case",
-			target:  "google.com",
-			timeout: 1,
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -39,10 +33,6 @@ func TestMakeDNSQuery(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(tt.timeout)*time.Millisecond)
 			defer cancel()
 			result, err := ResolveDNS(ctx, tt.target)
-
-			// fmt.Printf("Result: %v, Error: %v\n", result, err)
-			// isTimeout := os.IsTimeout(err)
-			// fmt.Printf("isTimeout: %v\n", isTimeout)
 
 			if tt.wantErr {
 				if err == nil {
@@ -61,5 +51,19 @@ func TestMakeDNSQuery(t *testing.T) {
 			}
 		})
 	}
+}
 
+// TestResolveDNS_RespetaCancelacion verifica, de forma determinista, que
+// ResolveDNS aborta cuando el contexto está cancelado. Usamos un contexto YA
+// cancelado en vez de un timeout chico (como "1ms"), porque ese enfoque dependía
+// del tiempo de red y del caché del resolver: si la respuesta llegaba rápido, no
+// había error y el test fallaba de forma intermitente.
+func TestResolveDNS_RespetaCancelacion(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelado antes de llamar: el resultado no depende de la red
+
+	_, err := ResolveDNS(ctx, "google.com")
+	if err == nil {
+		t.Fatal("esperaba un error por contexto cancelado, pero obtuve nil")
+	}
 }

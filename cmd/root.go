@@ -10,11 +10,14 @@ import (
 
 var output string
 
-// rootCmd es el comando base: se ejecuta cuando llamas al binario sin subcomandos.
+// rootCmd is the base command, run when the binary is invoked with no subcommand.
 var rootCmd = &cobra.Command{
 	Use:   "sonarkube",
 	Short: "Network toolkit for subnet math and host probing",
 	Long:  `sonarkube is a CLI toolkit for network engineers: calculate and split IPv4 subnets, and probe hosts over TCP, DNS, and ICMP.`,
+	// No volcar el Usage completo ante un error de runtime; Cobra sigue
+	// imprimiendo el mensaje de error (una sola vez) en stderr.
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if output != "table" && output != "json" {
 			return fmt.Errorf("invalid --output value %q: must be \"table\" or \"json\"", output)
@@ -23,10 +26,9 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute es el punto de entrada que llama main.go.
+// Execute is the entry point called by main.go.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }
