@@ -2,6 +2,7 @@ package probe
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,8 @@ type ConnectionResult struct {
 	Detail    string        `json:"detail,omitempty"`
 }
 
+type ConnectionResults []ConnectionResult
+
 func (r ConnectionResult) RenderTable() (string, error) {
 	if !r.Success {
 		return fmt.Sprintf("Target: %s\nSuccess: false\nError: %v\n", r.Target, r.Err), nil
@@ -24,4 +27,19 @@ func (r ConnectionResult) RenderTable() (string, error) {
 		s += fmt.Sprintf("Detail: %s\n", r.Detail)
 	}
 	return s, nil
+}
+
+func (rs ConnectionResults) RenderTable() (string, error) {
+	var b strings.Builder
+
+	for _, r := range rs {
+		s, err := r.RenderTable()
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(s)
+		b.WriteString("\n")
+	}
+
+	return b.String(), nil
 }

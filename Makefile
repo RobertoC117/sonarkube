@@ -1,5 +1,7 @@
 lint:
 	golangci-lint run
+format:
+	gofmt -w .
 test:
 	go test ./...
 test-v:
