@@ -4,6 +4,7 @@ import (
 	"github.com/RobertoC117/sonarkube/cmd/probe/dns"
 	"github.com/RobertoC117/sonarkube/cmd/probe/icmp"
 	"github.com/RobertoC117/sonarkube/cmd/probe/tcp"
+	"github.com/RobertoC117/sonarkube/cmd/probe/tls"
 	"github.com/spf13/cobra"
 )
 
@@ -18,4 +19,5 @@ func init() {
 	ProbeCmd.AddCommand(tcp.TcpCmd)
 	ProbeCmd.AddCommand(dns.DnsCmd)
 	ProbeCmd.AddCommand(icmp.IcmpCmd)
+	ProbeCmd.AddCommand(tls.TlsCmd)
 }
