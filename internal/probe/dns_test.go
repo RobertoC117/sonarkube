@@ -53,17 +53,15 @@ func TestMakeDNSQuery(t *testing.T) {
 	}
 }
 
-// TestResolveDNS_RespetaCancelacion verifica, de forma determinista, que
-// ResolveDNS aborta cuando el contexto está cancelado. Usamos un contexto YA
-// cancelado en vez de un timeout chico (como "1ms"), porque ese enfoque dependía
-// del tiempo de red y del caché del resolver: si la respuesta llegaba rápido, no
-// había error y el test fallaba de forma intermitente.
-func TestResolveDNS_RespetaCancelacion(t *testing.T) {
+// Deterministically verifies ResolveDNS aborts when the context is cancelled.
+// Uses an already-cancelled context instead of a tiny timeout (like "1ms"),
+// which depended on network timing and resolver cache and failed intermittently.
+func TestResolveDNS_RespectsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancelado antes de llamar: el resultado no depende de la red
+	cancel() // cancelled before the call: result does not depend on the network
 
 	_, err := ResolveDNS(ctx, "google.com")
 	if err == nil {
-		t.Fatal("esperaba un error por contexto cancelado, pero obtuve nil")
+		t.Fatal("expected an error from the cancelled context, got nil")
 	}
 }

@@ -7,19 +7,19 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// PathFinderFunc es la "sonda": recibe un destino y devuelve su resultado.
-// Scan la recibe como parámetro para poder inyectar sondas reales (tcp, dns,
-// icmp) o falsas en los tests.
+// PathFinderFunc is the "probe": it takes a target and returns its result. Scan
+// receives it as a parameter so real probes (tcp, dns, icmp) or fakes can be
+// injected in tests.
 type PathFinderFunc func(ctx context.Context, target string) (probe.ConnectionResult, error)
 
-// Scan sondea todos los targets en paralelo, con un máximo de `workers` sondeos
-// simultáneos. Devuelve un resultado por destino, en el mismo orden que la
-// entrada. Si el contexto se cancela (timeout o Ctrl-C), corta cuanto antes y
-// devuelve el error del contexto junto con los resultados parciales.
+// Scan probes all targets in parallel, with at most `workers` simultaneous
+// probes. It returns one result per target, in input order. If the context is
+// cancelled (timeout or Ctrl-C), it stops as soon as possible and returns the
+// context error along with partial results.
 func Scan(ctx context.Context, targets []string, concurrency int, pathfinder PathFinderFunc) (probe.ConnectionResults, error) {
-	// gctx es el contexto derivado del grupo; lo pasamos a cada sonda para que
-	// la cancelación se propague. OJO: errgroup cancela gctx apenas Wait()
-	// retorna, así que NO sirve para saber si hubo cancelación "real".
+	// gctx is the group-derived context; we pass it to each probe so
+	// cancellation propagates. Note: errgroup cancels gctx as soon as Wait()
+	// returns, so it cannot tell whether a "real" cancellation happened.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrency)
 
@@ -27,17 +27,17 @@ func Scan(ctx context.Context, targets []string, concurrency int, pathfinder Pat
 
 	for i, target := range targets {
 		g.Go(func() error {
-			// Un sondeo fallido NO debe cancelar a los demás: el fallo ya
-			// viaja dentro del ConnectionResult, así que devolvemos nil.
-			// Cada goroutine escribe en su propio índice, sin pisar a otras.
+			// A failed probe must NOT cancel the others: the failure already
+			// travels inside the ConnectionResult, so we return nil. Each
+			// goroutine writes to its own index without clobbering others.
 			results[i], _ = pathfinder(gctx, target)
 			return nil
 		})
 	}
 
-	_ = g.Wait() // los workers siempre devuelven nil, así que Wait no da error
+	_ = g.Wait() // workers always return nil, so Wait never errors
 
-	// Consultamos el contexto ORIGINAL (no el derivado): su Err() es nil si el
-	// llamador no canceló, o el motivo (timeout / Ctrl-C) si sí lo hizo.
+	// Query the ORIGINAL context (not the derived one): its Err() is nil if the
+	// caller did not cancel, or the reason (timeout / Ctrl-C) if it did.
 	return results, ctx.Err()
 }

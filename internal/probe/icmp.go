@@ -93,8 +93,8 @@ func MakePing(ctx context.Context, host string, count int, perPacketTimeout time
 
 		start := time.Now()
 
-		// Deadline propio por paquete: un eco perdido no debe consumir
-		// el presupuesto de tiempo de los siguientes.
+		// Per-packet deadline: a lost echo must not consume the time
+		// budget of the following packets.
 		if err := conn.SetDeadline(start.Add(perPacketTimeout)); err != nil {
 			return stats, err
 		}
@@ -146,9 +146,8 @@ func MakePing(ctx context.Context, host string, count int, perPacketTimeout time
 	return stats, nil
 }
 
-// waitForEchoReply lee paquetes hasta encontrar una respuesta que corresponda
-// a este ID+Seq (ignora respuestas de otras sondas ICMP que puedan llegar),
-// o hasta que se cumpla el deadline seteado en el conn.
+// waitForEchoReply reads packets until it finds a reply matching this ID+Seq
+// (ignoring replies from other ICMP probes), or until the conn deadline fires.
 func waitForEchoReply(conn *icmp.PacketConn, id, seq int) (*icmp.Message, error) {
 	buf := make([]byte, 1500)
 	for {
@@ -157,7 +156,7 @@ func waitForEchoReply(conn *icmp.PacketConn, id, seq int) (*icmp.Message, error)
 			return nil, err
 		}
 
-		rm, err := icmp.ParseMessage(1, buf[:n]) // 1 = número de protocolo IANA para ICMPv4
+		rm, err := icmp.ParseMessage(1, buf[:n]) // 1 = IANA protocol number for ICMPv4
 		if err != nil {
 			return nil, err
 		}

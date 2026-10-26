@@ -9,8 +9,8 @@ import (
 	"github.com/RobertoC117/sonarkube/internal/probe"
 )
 
-func TestWithTimeout_CortaSondaLenta(t *testing.T) {
-	// Sonda falsa que se cuelga hasta que el contexto se cancele.
+func TestWithTimeout_AbortsSlowProbe(t *testing.T) {
+	// Fake probe that hangs until the context is cancelled.
 	slow := func(ctx context.Context, target string) (probe.ConnectionResult, error) {
 		<-ctx.Done()
 		return probe.ConnectionResult{Target: target, Err: ctx.Err()}, ctx.Err()
@@ -23,14 +23,14 @@ func TestWithTimeout_CortaSondaLenta(t *testing.T) {
 	elapsed := time.Since(start)
 
 	if elapsed > 200*time.Millisecond {
-		t.Errorf("no cortó a tiempo: tardó %v", elapsed)
+		t.Errorf("did not abort in time: took %v", elapsed)
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("esperaba DeadlineExceeded, obtuve %v", err)
+		t.Errorf("expected DeadlineExceeded, got %v", err)
 	}
 }
 
-func TestWithTimeout_NoCortaSondaRapida(t *testing.T) {
+func TestWithTimeout_DoesNotAbortFastProbe(t *testing.T) {
 	fast := func(ctx context.Context, target string) (probe.ConnectionResult, error) {
 		return probe.ConnectionResult{Target: target, Success: true}, nil
 	}
@@ -39,7 +39,7 @@ func TestWithTimeout_NoCortaSondaRapida(t *testing.T) {
 
 	got, err := wrapped(context.Background(), "1.1.1.1")
 	if err != nil {
-		t.Errorf("no esperaba error: %v", err)
+		t.Errorf("did not expect an error: %v", err)
 	}
 	if !got.Success {
 		t.Error("esperaba Success=true")
@@ -55,7 +55,7 @@ func TestSummarizePing(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "todas responden",
+			name: "all reply",
 			stats: probe.PingStats{
 				Target:   "1.1.1.1",
 				Sent:     3,
@@ -70,7 +70,7 @@ func TestSummarizePing(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name: "pérdida parcial (1 de 3)",
+			name: "partial loss (1 of 3)",
 			stats: probe.PingStats{
 				Target:   "1.1.1.1",
 				Sent:     3,
@@ -81,11 +81,11 @@ func TestSummarizePing(t *testing.T) {
 					{Seq: 3, Success: false},
 				},
 			},
-			wantSuccess: true, // responde al menos uno → vivo
+			wantSuccess: true, // at least one answered -> alive
 			wantErr:     false,
 		},
 		{
-			name: "pérdida total",
+			name: "total loss",
 			stats: probe.PingStats{
 				Target:   "1.1.1.1",
 				Sent:     3,
@@ -100,7 +100,7 @@ func TestSummarizePing(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			name:        "error fatal (p. ej. falta sudo)",
+			name:        "fatal error (e.g. missing sudo)",
 			stats:       probe.PingStats{Target: "1.1.1.1"},
 			err:         errors.New("requires sudo"),
 			wantSuccess: false,
@@ -113,19 +113,19 @@ func TestSummarizePing(t *testing.T) {
 			got := summarizePing(tt.stats, tt.err)
 
 			if got.Success != tt.wantSuccess {
-				t.Errorf("Success: esperaba %v, obtuve %v", tt.wantSuccess, got.Success)
+				t.Errorf("Success: expected %v, got %v", tt.wantSuccess, got.Success)
 			}
 			if (got.Err != nil) != tt.wantErr {
-				t.Errorf("Err: esperaba error=%v, obtuve %v", tt.wantErr, got.Err)
+				t.Errorf("Err: expected error=%v, got %v", tt.wantErr, got.Err)
 			}
 			if got.Target != tt.stats.Target {
-				t.Errorf("Target: esperaba %v, obtuve %v", tt.stats.Target, got.Target)
+				t.Errorf("Target: expected %v, got %v", tt.stats.Target, got.Target)
 			}
 		})
 	}
 }
 
-func TestSummarizePing_PromedioDeLatencia(t *testing.T) {
+func TestSummarizePing_AverageLatency(t *testing.T) {
 	stats := probe.PingStats{
 		Target:   "1.1.1.1",
 		Sent:     2,
@@ -138,7 +138,7 @@ func TestSummarizePing_PromedioDeLatencia(t *testing.T) {
 
 	got := summarizePing(stats, nil)
 
-	if got.LatencyMs != 15 { // promedio de 10ms y 20ms
-		t.Errorf("latencia promedio: esperaba 15ms, obtuve %vms", got.LatencyMs)
+	if got.LatencyMs != 15 { // average of 10ms and 20ms
+		t.Errorf("average latency: expected 15ms, got %vms", got.LatencyMs)
 	}
 }

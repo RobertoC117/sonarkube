@@ -11,8 +11,8 @@ import (
 	"github.com/RobertoC117/sonarkube/internal/probe"
 )
 
-// okProbe es una sonda falsa sencilla: no toca la red y siempre devuelve
-// un resultado exitoso para el destino que recibe.
+// okProbe is a simple fake probe: it never touches the network and always
+// returns a successful result for the target it receives.
 func okProbe(ctx context.Context, target string) (probe.ConnectionResult, error) {
 	return probe.ConnectionResult{
 		Target:  target,
@@ -20,8 +20,8 @@ func okProbe(ctx context.Context, target string) (probe.ConnectionResult, error)
 	}, nil
 }
 
-// countingProbe es una sonda falsa con estado: cuenta cuántos sondeos corren
-// a la vez y recuerda el pico máximo, para validar el límite de concurrencia.
+// countingProbe is a stateful fake probe: it counts how many probes run at once
+// and remembers the peak, to validate the concurrency limit.
 type countingProbe struct {
 	inFlight atomic.Int32
 	maxSeen  atomic.Int32
@@ -31,7 +31,7 @@ func (c *countingProbe) fakePathFinder(ctx context.Context, target string) (prob
 	current := c.inFlight.Add(1)
 	defer c.inFlight.Add(-1)
 
-	// Guardar el pico de forma segura entre goroutines.
+	// Store the peak safely across goroutines.
 	for {
 		old := c.maxSeen.Load()
 		if current <= old {
@@ -42,7 +42,7 @@ func (c *countingProbe) fakePathFinder(ctx context.Context, target string) (prob
 		}
 	}
 
-	time.Sleep(10 * time.Millisecond) // simula trabajo para que los sondeos se solapen
+	time.Sleep(10 * time.Millisecond) // simulate work so probes overlap
 
 	return probe.ConnectionResult{
 		Target:  target,
@@ -50,21 +50,21 @@ func (c *countingProbe) fakePathFinder(ctx context.Context, target string) (prob
 	}, nil
 }
 
-// blockingProbe es una sonda falsa que RESPETA el ctx: "trabaja" un tiempo
-// largo, pero abandona de inmediato si el contexto se cancela. Es la clave
-// para probar que la cancelación corta el escaneo.
+// blockingProbe is a fake probe that RESPECTS ctx: it "works" for a long time
+// but returns immediately if the context is cancelled. Key to proving that
+// cancellation cuts the scan short.
 func blockingProbe(ctx context.Context, target string) (probe.ConnectionResult, error) {
 	select {
 	case <-ctx.Done():
-		// Me cancelaron: devuelvo ya, con el motivo dentro del resultado.
+		// Cancelled: return now, with the reason inside the result.
 		return probe.ConnectionResult{Target: target, Success: false, Err: ctx.Err()}, ctx.Err()
 	case <-time.After(500 * time.Millisecond):
-		// Alcancé a "trabajar" todo mi tiempo sin que me cancelen.
+		// Finished all my "work" without being cancelled.
 		return probe.ConnectionResult{Target: target, Success: true}, nil
 	}
 }
 
-func TestScan_DevuelveUnResultadoPorTarget(t *testing.T) {
+func TestScan_ReturnsOneResultPerTarget(t *testing.T) {
 	targets := []string{
 		"www.google.com",
 		"www.youtube.com",
@@ -73,11 +73,11 @@ func TestScan_DevuelveUnResultadoPorTarget(t *testing.T) {
 
 	got, err := Scan(context.Background(), targets, 50, okProbe)
 	if err != nil {
-		t.Fatalf("no esperaba error pero recibí: %v", err)
+		t.Fatalf("did not expect an error, got: %v", err)
 	}
 
 	if len(got) != len(targets) {
-		t.Errorf("esperaba %v resultados pero recibí %v", len(targets), len(got))
+		t.Errorf("expected %v results, got %v", len(targets), len(got))
 	}
 
 	scannedTargets := make(map[string]bool)
@@ -92,7 +92,7 @@ func TestScan_DevuelveUnResultadoPorTarget(t *testing.T) {
 	}
 }
 
-func TestScan_RespetaLimiteDeConcurrencia(t *testing.T) {
+func TestScan_RespectsConcurrencyLimit(t *testing.T) {
 	counter := &countingProbe{}
 	workers := 5
 
@@ -102,13 +102,13 @@ func TestScan_RespetaLimiteDeConcurrencia(t *testing.T) {
 	}
 
 	if _, err := Scan(context.Background(), targets, workers, counter.fakePathFinder); err != nil {
-		t.Fatalf("no esperaba error pero recibí: %v", err)
+		t.Fatalf("did not expect an error, got: %v", err)
 	}
 
 	max := counter.maxSeen.Load()
 
 	if max > int32(workers) {
-		t.Errorf("se superó el límite de workers: pico %v, permitido %v", max, workers)
+		t.Errorf("exceeded the worker limit: peak %v, allowed %v", max, workers)
 	}
 
 	if max <= 1 {
@@ -116,13 +116,13 @@ func TestScan_RespetaLimiteDeConcurrencia(t *testing.T) {
 	}
 }
 
-func TestScan_CancelaAlCancelarElContexto(t *testing.T) {
+func TestScan_CancelsOnContextCancellation(t *testing.T) {
 	targets := make([]string, 20)
 	for i := range targets {
 		targets[i] = fmt.Sprintf("target-%v", i)
 	}
 
-	// El contexto se cancela solo a los 50ms.
+	// The context auto-cancels after 50ms.
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -130,14 +130,14 @@ func TestScan_CancelaAlCancelarElContexto(t *testing.T) {
 	_, err := Scan(ctx, targets, 5, blockingProbe)
 	elapsed := time.Since(start)
 
-	// Sin cancelación, 20 destinos de 500ms con 5 workers tardarían ~2s.
-	// Con la cancelación a los 50ms, Scan debe cortar mucho antes.
+	// Without cancellation, 20 targets of 500ms with 5 workers would take ~2s.
+	// With cancellation at 50ms, Scan must cut off much sooner.
 	if elapsed > 200*time.Millisecond {
-		t.Errorf("Scan no respetó la cancelación: tardó %v", elapsed)
+		t.Errorf("Scan did not honor cancellation: took %v", elapsed)
 	}
 
 	if err == nil {
-		t.Error("esperaba un error de cancelación, pero Scan devolvió nil")
+		t.Error("expected a cancellation error, but Scan returned nil")
 	}
 }
 

@@ -28,6 +28,6 @@ func ResolveDNS(ctx context.Context, name string) (ConnectionResult, error) {
 		Success:   true,
 		Latency:   elapsed,
 		LatencyMs: elapsed.Milliseconds(),
-		Detail:    strings.Join(ips, ", "), // o guardá el slice completo si tu struct lo soporta
+		Detail:    strings.Join(ips, ", "), // or store the full slice if the struct supports it
 	}, nil
 }

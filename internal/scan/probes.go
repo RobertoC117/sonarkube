@@ -9,41 +9,41 @@ import (
 	"github.com/RobertoC117/sonarkube/internal/probe"
 )
 
-// ICMPProbe arma una PathFinderFunc para sondeos ICMP (ping). Captura el número
-// de paquetes y el timeout por paquete en una closure, porque MakePing los pide
-// pero PathFinderFunc no los recibe. El resultado (PingStats) se resume a un
-// ConnectionResult uniforme para que Scan lo trate igual que a tcp/dns.
+// ICMPProbe builds a PathFinderFunc for ICMP (ping) probes. It captures the
+// packet count and per-packet timeout in a closure, since MakePing needs them
+// but PathFinderFunc does not receive them. The result (PingStats) is reduced to
+// a uniform ConnectionResult so Scan treats it like tcp/dns.
 //
-// Nota: tcp y dns NO necesitan adaptador, porque probe.EstablishTCPConnection y
-// probe.ResolveDNS ya tienen exactamente la forma de PathFinderFunc.
+// Note: tcp and dns need no adapter, because probe.EstablishTCPConnection and
+// probe.ResolveDNS already match the PathFinderFunc shape.
 func ICMPProbe(count int, perPacketTimeout time.Duration) PathFinderFunc {
 	return func(ctx context.Context, target string) (probe.ConnectionResult, error) {
 		stats, err := probe.MakePing(ctx, target, count, perPacketTimeout)
-		// Devolvemos nil como error: un host caído es un resultado, no un fallo
-		// del escaneo. El motivo viaja plegado dentro del ConnectionResult.
+		// Return nil error: a down host is a result, not a scan failure. The
+		// reason travels folded inside the ConnectionResult.
 		return summarizePing(stats, err), nil
 	}
 }
 
-// DefaultTimeout es el tiempo máximo de espera por target cuando no se
-// especifica uno. Para icmp se interpreta como timeout por paquete.
+// DefaultTimeout is the max wait per target when none is specified. For icmp it
+// is interpreted as the per-packet timeout.
 const DefaultTimeout = 5 * time.Second
 
-// TCPProbe arma una PathFinderFunc para sondeos TCP con un tiempo máximo por
-// target. probe.EstablishTCPConnection ya tiene la forma correcta; solo le
-// sumamos el límite de tiempo por llamada.
+// TCPProbe builds a PathFinderFunc for TCP probes with a max time per target.
+// probe.EstablishTCPConnection already has the right shape; we just add the
+// per-call time limit.
 func TCPProbe(timeout time.Duration) PathFinderFunc {
 	return withTimeout(probe.EstablishTCPConnection, timeout)
 }
 
-// DNSProbe arma una PathFinderFunc para resolución DNS con timeout por target.
+// DNSProbe builds a PathFinderFunc for DNS resolution with a per-target timeout.
 func DNSProbe(timeout time.Duration) PathFinderFunc {
 	return withTimeout(probe.ResolveDNS, timeout)
 }
 
-// withTimeout envuelve cualquier sonda para que cada llamada aborte si tarda más
-// de d. Deriva un contexto con deadline del que recibe, así respeta también la
-// cancelación de arriba (p. ej. Ctrl-C). Si d <= 0, no aplica límite.
+// withTimeout wraps any probe so each call aborts if it takes longer than d. It
+// derives a context with deadline from the received one, so it also respects
+// upstream cancellation (e.g. Ctrl-C). If d <= 0, no limit applies.
 func withTimeout(inner PathFinderFunc, d time.Duration) PathFinderFunc {
 	if d <= 0 {
 		return inner
@@ -55,14 +55,14 @@ func withTimeout(inner PathFinderFunc, d time.Duration) PathFinderFunc {
 	}
 }
 
-// summarizePing es pura: convierte el PingStats (y un posible error de MakePing)
-// en un ConnectionResult. Al no depender de la red ni de privilegios, se testea
-// sin sudo y sin salir a la red.
+// summarizePing is pure: it converts PingStats (and a possible MakePing error)
+// into a ConnectionResult. Depending on neither network nor privileges, it is
+// testable without sudo and without hitting the network.
 func summarizePing(stats probe.PingStats, err error) probe.ConnectionResult {
 	result := probe.ConnectionResult{Target: stats.Target}
 
-	// Error fatal antes de poder pingear (no resolvió el host, falta sudo, etc.).
-	// Ese error no viene dentro de PingStats, por eso lo recibimos aparte.
+	// Fatal error before pinging (host not resolved, missing sudo, etc.). This
+	// error does not come inside PingStats, so we receive it separately.
 	if err != nil {
 		result.Success = false
 		result.Err = err
@@ -74,9 +74,9 @@ func summarizePing(stats probe.PingStats, err error) probe.ConnectionResult {
 	if stats.Sent > 0 {
 		lossPct = float64(stats.Sent-stats.Received) / float64(stats.Sent) * 100
 	}
-	result.Detail = fmt.Sprintf("%d/%d recibidos, %.0f%% pérdida", stats.Received, stats.Sent, lossPct)
+	result.Detail = fmt.Sprintf("%d/%d received, %.0f%% loss", stats.Received, stats.Sent, lossPct)
 
-	// Un host está "vivo" si respondió al menos un ping.
+	// A host is "alive" if it answered at least one ping.
 	if stats.Received == 0 {
 		result.Success = false
 		result.Err = errors.New("100% packet loss")
@@ -86,7 +86,7 @@ func summarizePing(stats probe.PingStats, err error) probe.ConnectionResult {
 
 	result.Success = true
 
-	// Latencia representativa: promedio de las respuestas exitosas.
+	// Representative latency: average of the successful replies.
 	var total time.Duration
 	var n int
 	for _, r := range stats.Replies {

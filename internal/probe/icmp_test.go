@@ -15,7 +15,7 @@ func TestPingStatsRenderTable(t *testing.T) {
 		want  string
 	}{
 		{
-			name: "todos los replies exitosos",
+			name: "all replies succeed",
 			stats: PingStats{
 				Target:   "192.168.1.1",
 				Sent:     2,
@@ -31,7 +31,7 @@ func TestPingStatsRenderTable(t *testing.T) {
 				"2 packets transmitted, 2 received, 0.0% packet loss\n",
 		},
 		{
-			name: "todos los replies fallidos",
+			name: "all replies fail",
 			stats: PingStats{
 				Target:   "10.0.0.99",
 				Sent:     2,
@@ -47,7 +47,7 @@ func TestPingStatsRenderTable(t *testing.T) {
 				"2 packets transmitted, 0 received, 100.0% packet loss\n",
 		},
 		{
-			name: "mezcla de exitosos y fallidos",
+			name: "mix of successes and failures",
 			stats: PingStats{
 				Target:   "example.com",
 				Sent:     4,
@@ -67,9 +67,9 @@ func TestPingStatsRenderTable(t *testing.T) {
 				"4 packets transmitted, 1 received, 75.0% packet loss\n",
 		},
 		{
-			// Caso borde: Sent == 0 ejercita la guarda "if s.Sent > 0" que evita
-			// dividir por cero al calcular el porcentaje de perdida.
-			name: "sin paquetes enviados",
+			// Edge case: Sent == 0 exercises the "if s.Sent > 0" guard that
+			// avoids dividing by zero when computing loss percentage.
+			name: "no packets sent",
 			stats: PingStats{
 				Target:   "host",
 				Sent:     0,
@@ -102,7 +102,7 @@ func TestMakePing(t *testing.T) {
 		timeout      int64
 		wantErr      bool
 		minReceived  int
-		wantReceived int // usado cuando se espera un valor exacto (ej. 0)
+		wantReceived int // used when an exact value is expected (e.g. 0)
 	}{
 		{
 			name:        "success case",
@@ -120,10 +120,10 @@ func TestMakePing(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// Un perPacketTimeout de 1ms no le da tiempo a ningun reply de
-			// llegar. MakePing no trata esto como error: solo registra cada
-			// intento como un PingReply{Success:false} y sigue.
-			name:         "per-packet timeout muy corto",
+			// A 1ms perPacketTimeout gives no reply time to arrive. MakePing
+			// does not treat this as an error: it records each attempt as a
+			// PingReply{Success:false} and continues.
+			name:         "per-packet timeout too short",
 			target:       "google.com",
 			count:        1,
 			timeout:      1,
@@ -140,7 +140,7 @@ func TestMakePing(t *testing.T) {
 			stats, err := MakePing(ctx, tt.target, tt.count, time.Duration(tt.timeout)*time.Millisecond)
 
 			if errors.Is(err, os.ErrPermission) {
-				t.Skip("enviar ICMP requiere privilegios de administrador (correr con sudo)")
+				t.Skip("sending ICMP requires administrator privileges (run with sudo)")
 			}
 
 			if (err != nil) != tt.wantErr {
@@ -153,7 +153,7 @@ func TestMakePing(t *testing.T) {
 			if tt.minReceived > 0 && stats.Received < tt.minReceived {
 				t.Errorf("expected at least %d received replies, got %d", tt.minReceived, stats.Received)
 			}
-			if tt.name == "per-packet timeout muy corto" && stats.Received != tt.wantReceived {
+			if tt.name == "per-packet timeout too short" && stats.Received != tt.wantReceived {
 				t.Errorf("expected %d received replies, got %d", tt.wantReceived, stats.Received)
 			}
 		})
@@ -167,7 +167,7 @@ func TestMakePing_ContextAlreadyCancelled(t *testing.T) {
 	_, err := MakePing(ctx, "google.com", 1, time.Second)
 
 	if errors.Is(err, os.ErrPermission) {
-		t.Skip("enviar ICMP requiere privilegios de administrador (correr con sudo)")
+		t.Skip("sending ICMP requires administrator privileges (run with sudo)")
 	}
 
 	if !errors.Is(err, context.Canceled) {

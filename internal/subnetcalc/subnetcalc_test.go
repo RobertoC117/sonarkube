@@ -5,41 +5,38 @@ import (
 	"testing"
 )
 
-// Convenciones de Go testing que vas a ver en este archivo:
+// Go testing conventions used in this file:
 //
-//  1. El archivo se llama <nombre>_test.go y vive junto al código que prueba.
-//     `go test` lo detecta automáticamente por el sufijo "_test.go".
-//  2. Cada función de test empieza con "Test" + Nombre, y recibe *testing.T.
-//     Es la firma exacta que `go test` busca — si le falta el "Test" o el *testing.T,
-//     no se ejecuta como test.
-//  3. package subnetcalc (mismo paquete, no subnetcalc_test): así podemos probar
-//     funciones no exportadas como calculateHostAvailable o findInterestingOctet.
-//  4. Patrón "table-driven": una tabla (slice de structs) con casos de entrada/salida,
-//     y un solo loop que los corre todos. Es EL estilo idiomático en Go para esto —
-//     evita repetir el mismo cuerpo de test 10 veces.
-//  5. t.Run(nombre, func) crea un "subtest": podés correr uno solo con
-//     `go test -run TestCalculateHostAvailable/24_normal`, y si falla, el output
-//     te dice exactamente cuál caso de la tabla fue.
+//  1. The file is named <name>_test.go and lives next to the code it tests.
+//     `go test` finds it automatically by the "_test.go" suffix.
+//  2. Each test function starts with "Test" + Name and takes *testing.T. That
+//     exact signature is what `go test` looks for.
+//  3. package subnetcalc (same package, not subnetcalc_test): lets us test
+//     unexported functions like calculateHostAvailable or findInterestingOctet.
+//  4. Table-driven pattern: a table (slice of structs) of input/output cases and
+//     a single loop running them all. The idiomatic Go style for this.
+//  5. t.Run(name, func) creates a subtest: run one with
+//     `go test -run TestCalculateHostAvailable/24_normal`; on failure the output
+//     names exactly which table case failed.
 
 func TestCalculateHostAvailable(t *testing.T) {
-	// mustParseCIDR es un helper local (ver abajo) para no repetir el manejo
-	// de error de ParseCIDR en cada caso de la tabla.
+	// mustParseCIDR is a local helper (see below) to avoid repeating ParseCIDR
+	// error handling in each table case.
 	tests := []struct {
 		name string
 		cidr string
 		want int
 	}{
-		{name: "/24 caso normal", cidr: "192.168.1.0/24", want: 254},
-		{name: "/30 red chica", cidr: "192.168.1.0/30", want: 2},
+		{name: "/24 normal case", cidr: "192.168.1.0/24", want: 254},
+		{name: "/30 small network", cidr: "192.168.1.0/30", want: 2},
 		{name: "/31 punto a punto (RFC 3021)", cidr: "192.168.1.0/31", want: 2},
-		{name: "/32 host unico", cidr: "192.168.1.0/32", want: 1},
+		{name: "/32 single host", cidr: "192.168.1.0/32", want: 1},
 	}
 
 	for _, tt := range tests {
-		// Importante: capturamos tt como variable local del loop (Go 1.22+ ya
-		// lo hace bien por defecto; en versiones viejas había que hacer
-		// `tt := tt` acá para evitar que todos los subtests compartan la
-		// última iteración). Revisa tu go.mod: si dice go 1.22 o más, no hace falta.
+		// Capture tt as a loop-local variable (Go 1.22+ does this by default;
+		// older versions needed `tt := tt` here so subtests did not share the
+		// last iteration). Check go.mod: for go 1.22 or later it is unnecessary.
 		t.Run(tt.name, func(t *testing.T) {
 			_, ipnet := mustParseCIDR(t, tt.cidr)
 
@@ -59,12 +56,12 @@ func TestCalculateBroadcastAddress(t *testing.T) {
 		want string
 	}{
 		{name: "/24 normal", cidr: "192.168.1.0/24", want: "192.168.1.255"},
-		// Este es el caso que expuso el bug 2 que corregiste: el "octeto
-		// interesante" de una /10 es el segundo byte, no el ultimo. Si el
-		// calculo de broadcast solo tocara un byte (como hacia el codigo viejo
-		// en calculateSubnets), este test fallaria.
-		{name: "/10 octeto interesante no es el ultimo", cidr: "10.0.0.0/10", want: "10.63.255.255"},
-		{name: "/31 sin broadcast propio pero igual calculable", cidr: "10.0.0.0/31", want: "10.0.0.1"},
+		// This is the case that exposed bug 2: the "interesting octet" of a /10
+		// is the second byte, not the last. If broadcast calculation touched
+		// only one byte (as the old calculateSubnets code did), this test would
+		// fail.
+		{name: "/10 interesting octet is not the last", cidr: "10.0.0.0/10", want: "10.63.255.255"},
+		{name: "/31 without its own broadcast but still computable", cidr: "10.0.0.0/31", want: "10.0.0.1"},
 	}
 
 	for _, tt := range tests {
@@ -86,14 +83,14 @@ func TestCalculateBroadcastAddress(t *testing.T) {
 func TestCalculateUsableHostRange(t *testing.T) {
 	tests := []struct {
 		name      string
-		network   string // se parsea con net.ParseIP, no CIDR
+		network   string // parsed with net.ParseIP, not CIDR
 		broadcast string
 		hostBits  int
 		wantLow   string
 		wantHigh  string
 	}{
 		{
-			name:      "/24 caso normal",
+			name:      "/24 normal case",
 			network:   "192.168.1.0",
 			broadcast: "192.168.1.255",
 			hostBits:  8,
@@ -109,7 +106,7 @@ func TestCalculateUsableHostRange(t *testing.T) {
 			wantHigh:  "10.0.0.1",
 		},
 		{
-			name:      "/32 unico host (hostBits == 0)",
+			name:      "/32 single host (hostBits == 0)",
 			network:   "10.0.0.5",
 			broadcast: "10.0.0.5",
 			hostBits:  0,
@@ -135,40 +132,40 @@ func TestCalculateUsableHostRange(t *testing.T) {
 	}
 }
 
-// --- TODO: para que sigas tu solo, con el mismo patron ---
+// --- TODO: continue on your own with the same pattern ---
 //
 // TestGetNetworkAndMask
-//   - caso CIDR valido: revisa que ipnet.String() sea el esperado.
-//   - caso CIDR invalido (ej. "no-es-un-cidr"): revisa que err != nil.
-//     (aqui la tabla necesita un campo `wantErr bool` ademas de `want`)
+//   - valid CIDR case: check ipnet.String() is as expected.
+//   - invalid CIDR case (e.g. "no-es-un-cidr"): check err != nil.
+//     (the table then needs a `wantErr bool` field besides `want`)
 func TestGetNetworkAndMask(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		networkAddres     string // se parsea con net.ParseIP, no CIDR
+		networkAddres     string // parsed with net.ParseIP, not CIDR
 		wantNetworkAdress string
 		wantNetworkMask   string
 		wantErr           bool
 	}{
 		{
-			name:              "/24 caso normal",
+			name:              "/24 normal case",
 			networkAddres:     "192.168.1.0/24",
 			wantNetworkAdress: "192.168.1.0/24",
 			wantNetworkMask:   "255.255.255.0",
 		},
 		{
-			name:              "/8 con host bits no en cero (normaliza a 10.0.0.0)",
+			name:              "/8 with host bits set (normalizes to 10.0.0.0)",
 			networkAddres:     "10.0.0.1/8",
 			wantNetworkAdress: "10.0.0.0/8",
 			wantNetworkMask:   "255.0.0.0",
 		},
 		{
-			name:              "/10 mascara con octeto intermedio",
+			name:              "/10 mask with middle octet",
 			networkAddres:     "10.0.0.5/10",
 			wantNetworkAdress: "10.0.0.0/10",
 			wantNetworkMask:   "255.192.0.0",
 		},
-		{name: "CIDR invalido", networkAddres: "no-es-un-cidr", wantErr: true},
+		{name: "invalid CIDR", networkAddres: "no-es-un-cidr", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -196,10 +193,9 @@ func TestGetNetworkAndMask(t *testing.T) {
 	}
 }
 
-// TestCalculateNewNetworkMask prueba calculateNewNetworkMask(currentMask net.IPMask, newBits int) net.IPMask.
-// net.CIDRMask(bits, 32) construye una mascara IPv4 (32 bits totales) a partir
-// de la cantidad de bits de red -- es la forma idiomatica de armar un
-// net.IPMask sin pasar por net.ParseCIDR.
+// TestCalculateNewNetworkMask tests calculateNewNetworkMask(currentMask net.IPMask, newBits int) net.IPMask.
+// net.CIDRMask(bits, 32) builds an IPv4 mask (32 bits total) from the network
+// bit count -- the idiomatic way to make a net.IPMask without net.ParseCIDR.
 func TestCalculateNewNetworkMask(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -209,16 +205,16 @@ func TestCalculateNewNetworkMask(t *testing.T) {
 	}{
 		{name: "/8 + 2 bits nuevos = /10", currentMask: net.CIDRMask(8, 32), newBits: 2, wantMask: "255.192.0.0"},
 		{name: "/24 + 2 bits nuevos = /26", currentMask: net.CIDRMask(24, 32), newBits: 2, wantMask: "255.255.255.192"},
-		// newBits=0 simula split=1: no se piden subredes nuevas, la mascara no debe cambiar.
-		{name: "/24 + 0 bits nuevos = /24 sin cambio", currentMask: net.CIDRMask(24, 32), newBits: 0, wantMask: "255.255.255.0"},
+		// newBits=0 simulates split=1: no new subnets requested, mask must not change.
+		{name: "/24 + 0 new bits = /24 unchanged", currentMask: net.CIDRMask(24, 32), newBits: 0, wantMask: "255.255.255.0"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := calculateNewNetworkMask(tt.currentMask, tt.newBits)
 
-			// mismo truco que en TestGetNetworkAndMask: net.IPMask es []byte,
-			// convertirlo a net.IP da el .String() en formato punteado.
+			// same trick as in TestGetNetworkAndMask: net.IPMask is []byte,
+			// converting it to net.IP gives .String() in dotted format.
 			if net.IP(got).String() != tt.wantMask {
 				t.Errorf("calculateNewNetworkMask(%v, %d) = %s, want %s", tt.currentMask, tt.newBits, net.IP(got).String(), tt.wantMask)
 			}
@@ -226,10 +222,9 @@ func TestCalculateNewNetworkMask(t *testing.T) {
 	}
 }
 
-// TestFindInterestingOctet prueba findInterestingOctet(mask net.IPMask) (index int, value byte, found bool).
-// El "octeto interesante" es el unico byte de la mascara que no es 0 ni 255 --
-// el que tiene el limite de la subred adentro. Una mascara "redonda" como /24
-// no tiene ninguno.
+// TestFindInterestingOctet tests findInterestingOctet(mask net.IPMask) (index int, value byte, found bool).
+// The "interesting octet" is the only mask byte that is neither 0 nor 255 --
+// the one holding the subnet boundary. A "round" mask like /24 has none.
 func TestFindInterestingOctet(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -238,9 +233,9 @@ func TestFindInterestingOctet(t *testing.T) {
 		wantValue byte
 		wantFound bool
 	}{
-		{name: "/24 mascara redonda, no hay octeto intermedio", mask: net.CIDRMask(24, 32), wantIndex: -1, wantValue: 0, wantFound: false},
-		{name: "/10 octeto intermedio en index 1", mask: net.CIDRMask(10, 32), wantIndex: 1, wantValue: 192, wantFound: true},
-		{name: "/26 octeto intermedio en index 3", mask: net.CIDRMask(26, 32), wantIndex: 3, wantValue: 192, wantFound: true},
+		{name: "/24 round mask, no middle octet", mask: net.CIDRMask(24, 32), wantIndex: -1, wantValue: 0, wantFound: false},
+		{name: "/10 middle octet at index 1", mask: net.CIDRMask(10, 32), wantIndex: 1, wantValue: 192, wantFound: true},
+		{name: "/26 middle octet at index 3", mask: net.CIDRMask(26, 32), wantIndex: 3, wantValue: 192, wantFound: true},
 	}
 
 	for _, tt := range tests {
@@ -255,10 +250,10 @@ func TestFindInterestingOctet(t *testing.T) {
 	}
 }
 
-// TestGetSubnetInfo prueba GetSubnetInfo(cidr string) (SubnetInfo, error) -- es
-// un test de integracion: ya no llama a una funcion interna suelta, sino a la
-// funcion exportada que combina varias (getNetworkAndMask, calculateBroadcastAddress,
-// calculateUsableHostRange, calculateHostAvailable).
+// TestGetSubnetInfo tests GetSubnetInfo(cidr string) (SubnetInfo, error) -- an
+// integration test: it calls the exported function that combines several
+// (getNetworkAndMask, calculateBroadcastAddress, calculateUsableHostRange,
+// calculateHostAvailable) rather than a single internal one.
 func TestGetSubnetInfo(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -267,7 +262,7 @@ func TestGetSubnetInfo(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "/24 caso normal",
+			name: "/24 normal case",
 			cidr: "192.168.1.0/24",
 			want: SubnetInfo{
 				Network:        "192.168.1.0/24",
@@ -277,7 +272,7 @@ func TestGetSubnetInfo(t *testing.T) {
 				UsableHosts:    254,
 			},
 		},
-		{name: "CIDR invalido", cidr: "no-es-un-cidr", wantErr: true},
+		{name: "invalid CIDR", cidr: "no-es-un-cidr", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -300,11 +295,10 @@ func TestGetSubnetInfo(t *testing.T) {
 	}
 }
 
-// TestSplitSubnet prueba SplitSubnet(cidr string, split int) ([]SubnetInfo, error).
-// Es el test de regresion mas importante del archivo: 10.0.0.0/8 dividido en 4
-// es exactamente el caso que expuso los dos bugs de aritmetica de 32 bits que
-// corregiste (calculateUsableHostRange y el broadcast_address en calculateSubnets).
-// Si alguno de los dos vuelve a romperse, este test lo detecta.
+// TestSplitSubnet tests SplitSubnet(cidr string, split int) ([]SubnetInfo, error).
+// The most important regression test here: 10.0.0.0/8 split into 4 is exactly
+// the case that exposed the two 32-bit arithmetic bugs (calculateUsableHostRange
+// and the broadcast address in calculateSubnets). It catches either regressing.
 func TestSplitSubnet(t *testing.T) {
 	t.Run("10.0.0.0/8 dividido en 4 subredes /10", func(t *testing.T) {
 		got, err := SplitSubnet("10.0.0.0/8", 4)
@@ -315,9 +309,9 @@ func TestSplitSubnet(t *testing.T) {
 			t.Fatalf("SplitSubnet devolvio %d subredes, want 4", len(got))
 		}
 
-		// Network no lleva sufijo de mascara (ej. "/10"): a diferencia de
-		// GetSubnetInfo, que arma el string desde un net.IPNet, calculateSubnets
-		// arma _subnetsInfo[i].Network desde un net.IP suelto (_network.String()).
+		// Network carries no mask suffix (e.g. "/10"): unlike GetSubnetInfo,
+		// which builds the string from a net.IPNet, calculateSubnets builds
+		// _subnetsInfo[i].Network from a bare net.IP (_network.String()).
 		want := []SubnetInfo{
 			{Network: "10.0.0.0", Broadcast: "10.63.255.255", LowLimitHost: "10.0.0.1", UpperLimitHost: "10.63.255.254", UsableHosts: 4194302},
 			{Network: "10.64.0.0", Broadcast: "10.127.255.255", LowLimitHost: "10.64.0.1", UpperLimitHost: "10.127.255.254", UsableHosts: 4194302},
@@ -333,8 +327,8 @@ func TestSplitSubnet(t *testing.T) {
 	})
 
 	t.Run("no hay bits suficientes para el split", func(t *testing.T) {
-		// /31 solo tiene 1 bit de host: pedir 4 subredes necesita 2 bits nuevos,
-		// y 31+2 > 32, asi que debe fallar en vez de producir mascaras invalidas.
+		// /31 has only 1 host bit: 4 subnets need 2 new bits, and 31+2 > 32, so
+		// it must fail instead of producing invalid masks.
 		_, err := SplitSubnet("10.0.0.0/31", 4)
 		if err == nil {
 			t.Fatalf("SplitSubnet(10.0.0.0/31, 4) = nil error, want error")
@@ -342,10 +336,10 @@ func TestSplitSubnet(t *testing.T) {
 	})
 }
 
-// mustParseCIDR es un helper de test: falla el test inmediatamente (t.Fatalf)
-// si el CIDR no parsea, en vez de repetir el `if err != nil` en cada caso de
-// la tabla. t.Helper() le dice a Go que, si falla, reporte la linea del
-// caller (tt.cidr) en vez de esta linea generica.
+// mustParseCIDR is a test helper: it fails the test immediately (t.Fatalf) if
+// the CIDR does not parse, instead of repeating `if err != nil` in each table
+// case. t.Helper() tells Go to report the caller's line (tt.cidr) on failure
+// rather than this generic line.
 func mustParseCIDR(t *testing.T, cidr string) (net.IP, *net.IPNet) {
 	t.Helper()
 
