@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/RobertoC117/sonarkube/internal/output"
@@ -10,19 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var timeout int64
-
 var TcpCmd = &cobra.Command{
 	Use:   "tcp <host:port>",
 	Short: "Check TCP connectivity to a host and port",
 	Long:  `Attempts a TCP handshake against <host:port> and reports success and latency. Exits with a non-zero code if the connection could not be established within --timeout.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if timeout <= 0 {
-			return fmt.Errorf("--timeout must be greater than 0")
+		format, err := cmd.Flags().GetString("output")
+		if err != nil {
+			return err
 		}
 
-		format, err := cmd.Flags().GetString("output")
+		timeout, err := cmd.Flags().GetInt64("timeout")
 		if err != nil {
 			return err
 		}
@@ -42,9 +40,4 @@ var TcpCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-// init declares the tcp command's local flags.
-func init() {
-	TcpCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Connection timeout in milliseconds")
 }

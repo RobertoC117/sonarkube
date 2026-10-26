@@ -2,7 +2,6 @@ package icmp
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/RobertoC117/sonarkube/internal/output"
@@ -10,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var timeout int64
 var count int
 
 var IcmpCmd = &cobra.Command{
@@ -19,11 +17,12 @@ var IcmpCmd = &cobra.Command{
 	Long:  `Sends --count ICMP echo requests to <host> and reports each reply plus a final summary (transmitted/received/packet loss). Requires administrator privileges to open a raw socket (run with sudo); --timeout applies per packet, not to the whole run.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if timeout <= 0 {
-			return fmt.Errorf("--timeout must be greater than 0")
+		format, err := cmd.Flags().GetString("output")
+		if err != nil {
+			return err
 		}
 
-		format, err := cmd.Flags().GetString("output")
+		timeout, err := cmd.Flags().GetInt64("timeout")
 		if err != nil {
 			return err
 		}
@@ -43,6 +42,5 @@ var IcmpCmd = &cobra.Command{
 
 // init declares the icmp command's local flags.
 func init() {
-	IcmpCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Per-packet timeout in milliseconds")
 	IcmpCmd.Flags().IntVarP(&count, "count", "c", 4, "Number of ICMP echo requests to send")
 }

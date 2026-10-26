@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/RobertoC117/sonarkube/internal/output"
@@ -10,19 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var timeout int64
-
 var DnsCmd = &cobra.Command{
 	Use:   "dns <host>",
 	Short: "Resolve a hostname via DNS",
 	Long:  `Resolves <host> to its IP addresses using the system resolver and reports the resolution latency. Exits with a non-zero code if resolution does not complete within --timeout.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if timeout <= 0 {
-			return fmt.Errorf("--timeout must be greater than 0")
+		format, err := cmd.Flags().GetString("output")
+		if err != nil {
+			return err
 		}
 
-		format, err := cmd.Flags().GetString("output")
+		timeout, err := cmd.Flags().GetInt64("timeout")
 		if err != nil {
 			return err
 		}
@@ -40,9 +38,4 @@ var DnsCmd = &cobra.Command{
 		}
 		return nil
 	},
-}
-
-// init declares the dns command's local flags.
-func init() {
-	DnsCmd.Flags().Int64VarP(&timeout, "timeout", "t", 5000, "Resolution timeout in milliseconds")
 }
