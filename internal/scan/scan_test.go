@@ -141,6 +141,41 @@ func TestScan_CancelsOnContextCancellation(t *testing.T) {
 	}
 }
 
+// TestScan_AbortsSlowProbesWithoutGlobalCancellation is the end-to-end check for
+// Requirement 2: with NO global cancellation, a scan full of hanging targets
+// still finishes, because each probe is wrapped in withTimeout and self-aborts
+// after its per-target threshold.
+func TestScan_AbortsSlowProbesWithoutGlobalCancellation(t *testing.T) {
+	// A fake probe that hangs until its own context is cancelled.
+	slow := func(ctx context.Context, target string) (probe.ConnectionResult, error) {
+		<-ctx.Done()
+		return probe.ConnectionResult{Target: target, Err: ctx.Err()}, ctx.Err()
+	}
+	timedProbe := withTimeout(slow, 20*time.Millisecond)
+
+	targets := make([]string, 20)
+	for i := range targets {
+		targets[i] = fmt.Sprintf("target-%v", i)
+	}
+
+	// context.Background() never cancels: if the per-target timeout did not
+	// fire, Scan would hang forever. With it, each probe aborts after ~20ms.
+	start := time.Now()
+	results, err := Scan(context.Background(), targets, 5, timedProbe)
+	elapsed := time.Since(start)
+
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("Scan did not honor the per-target timeout: took %v", elapsed)
+	}
+	// No global cancellation happened, so Scan's own ctx.Err() is nil.
+	if err != nil {
+		t.Errorf("did not expect a scan-level error, got %v", err)
+	}
+	if len(results) != len(targets) {
+		t.Errorf("expected %v results, got %v", len(targets), len(results))
+	}
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
