@@ -95,7 +95,7 @@ func TLSVerification(ctx context.Context, target string, insecure bool, now time
 		return TLSCertificateDetails{}, fmt.Errorf("could not establish TLS connection to %q: %w", target, err)
 	}
 
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	connState := conn.(*tls.Conn).ConnectionState()
 
